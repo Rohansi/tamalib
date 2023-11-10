@@ -25,24 +25,24 @@
 static u8_t seg_pos[40] = {0, 1, 2, 3, 4, 5, 6, 7, 32, 8, 9, 10, 11, 12 ,13 ,14, 15, 33, 34, 35, 31, 30, 29, 28, 27, 26, 25, 24, 36, 23, 22, 21, 20, 19, 18, 17, 16, 37, 38, 39};
 
 
-bool_t hw_init(void)
+void hw_init(cpu_t *cpu)
 {
 	/* Buttons are active LOW */
-	cpu_set_input_pin(PIN_K00, PIN_STATE_HIGH);
-	cpu_set_input_pin(PIN_K01, PIN_STATE_HIGH);
-	cpu_set_input_pin(PIN_K02, PIN_STATE_HIGH);
-
-	return 0;
+	cpu_set_input_pin(cpu, PIN_K00, PIN_STATE_HIGH);
+	cpu_set_input_pin(cpu, PIN_K01, PIN_STATE_HIGH);
+	cpu_set_input_pin(cpu, PIN_K02, PIN_STATE_HIGH);
 }
 
-void hw_release(void)
+void hw_release(cpu_t *cpu)
 {
 }
 
-void hw_set_lcd_pin(u8_t seg, u8_t com, u8_t val)
+void hw_set_lcd_pin(cpu_t *cpu, u8_t seg, u8_t com, u8_t val)
 {
 	if (seg_pos[seg] < LCD_WIDTH) {
-		g_hal->set_lcd_matrix(seg_pos[seg], com, val);
+		if (cpu->g_hal.set_lcd_matrix) {
+			cpu->g_hal.set_lcd_matrix(seg_pos[seg], com, val);
+		}
 	} else {
 		/*
 		 * IC n -> seg-com|...
@@ -56,33 +56,37 @@ void hw_set_lcd_pin(u8_t seg, u8_t com, u8_t val)
 		 * IC 7 -> 28-15|38-12|39-13
 		 */
 		if (seg == 8 && com < 4) {
-			g_hal->set_lcd_icon(com, val);
+			if (cpu->g_hal.set_lcd_icon) {
+				cpu->g_hal.set_lcd_icon(com, val);
+			}
 		} else if (seg == 28 && com >= 12) {
-			g_hal->set_lcd_icon(com - 8, val);
+			if (cpu->g_hal.set_lcd_icon) {
+				cpu->g_hal.set_lcd_icon(com - 8, val);
+			}
 		}
 	}
 }
 
-void hw_set_button(button_t btn, btn_state_t state)
+void hw_set_button(cpu_t *cpu, button_t btn, btn_state_t state)
 {
 	pin_state_t pin_state = (state == BTN_STATE_PRESSED) ? PIN_STATE_LOW : PIN_STATE_HIGH;
 
 	switch (btn) {
 		case BTN_LEFT:
-			cpu_set_input_pin(PIN_K02, pin_state);
+			cpu_set_input_pin(cpu, PIN_K02, pin_state);
 			break;
 
 		case BTN_MIDDLE:
-			cpu_set_input_pin(PIN_K01, pin_state);
+			cpu_set_input_pin(cpu, PIN_K01, pin_state);
 			break;
 
 		case BTN_RIGHT:
-			cpu_set_input_pin(PIN_K00, pin_state);
+			cpu_set_input_pin(cpu, PIN_K00, pin_state);
 			break;
 	}
 }
 
-void hw_set_buzzer_freq(u4_t freq)
+void hw_set_buzzer_freq(const cpu_t *cpu, u4_t freq)
 {
 	u32_t snd_freq = 0;
 
@@ -128,12 +132,14 @@ void hw_set_buzzer_freq(u4_t freq)
 			break;
 	}
 
-	if (snd_freq != 0) {
-		g_hal->set_frequency(snd_freq);
+	if (snd_freq != 0 && cpu->g_hal.set_frequency) {
+		cpu->g_hal.set_frequency(snd_freq);
 	}
 }
 
-void hw_enable_buzzer(bool_t en)
+void hw_enable_buzzer(const cpu_t *cpu, bool_t en)
 {
-	g_hal->play_frequency(en);
+	if (cpu->g_hal.play_frequency) {
+		cpu->g_hal.play_frequency(en);
+	}
 }

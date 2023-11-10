@@ -18,120 +18,71 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 #include "tamalib.h"
+
+#include <stdlib.h>
+#include <string.h>
+
 #include "hw.h"
 #include "cpu.h"
 #include "hal.h"
+#include "rom.h"
 
-#define DEFAULT_FRAMERATE				30 // fps
-
-static exec_mode_t exec_mode = EXEC_MODE_RUN;
-
-static u32_t step_depth = 0;
-
-static timestamp_t screen_ts = 0;
-
-static u32_t ts_freq;
-
-static u8_t g_framerate = DEFAULT_FRAMERATE;
-
-hal_t *g_hal;
-
-
-bool_t tamalib_init(const u12_t *program, breakpoint_t *breakpoints, u32_t freq)
+LIBRARY_API cpu_t *tamalib_create(
+	hal_set_lcd_matrix_handler_t lcd_matrix_handler,
+	hal_set_lcd_icon_handler_t lcd_icon_handler,
+	hal_set_frequency_handler_t set_frequency_handler,
+	hal_play_frequency_handler_t play_frequency_handler)
 {
-	bool_t res = 0;
+	cpu_t *cpu = malloc(sizeof(cpu_t));
+	if (!cpu) return NULL;
+	memset(cpu, 0, sizeof(cpu_t));
 
-	res |= cpu_init(program, breakpoints, freq);
-	res |= hw_init();
+	cpu_init(cpu, tamagotchi_rom);
+	hw_init(cpu);
 
-	ts_freq = freq;
+	cpu->g_hal.set_lcd_matrix = lcd_matrix_handler;
+	cpu->g_hal.set_lcd_icon = lcd_icon_handler;
+	cpu->g_hal.set_frequency = set_frequency_handler;
+	cpu->g_hal.play_frequency = play_frequency_handler;
 
-	return res;
+	return cpu;
 }
 
-void tamalib_release(void)
+LIBRARY_API void tamalib_destroy(cpu_t *cpu)
 {
-	hw_release();
-	cpu_release();
+	if (!cpu) return;
+	hw_release(cpu);
+	cpu_release(cpu);
+	free(cpu);
 }
 
-void tamalib_set_framerate(u8_t framerate)
+LIBRARY_API void tamalib_reset(cpu_t *cpu)
 {
-	g_framerate = framerate;
+	if (!cpu) return;
+	cpu_reset(cpu);
 }
 
-u8_t tamalib_get_framerate(void)
+LIBRARY_API void tamalib_set_button(cpu_t *cpu, button_t btn, btn_state_t state)
 {
-	return g_framerate;
+	if (!cpu) return;
+	hw_set_button(cpu, btn, state);
 }
 
-void tamalib_register_hal(hal_t *hal)
+LIBRARY_API void tamalib_step(cpu_t *cpu, u32_t cycles)
 {
-	g_hal = hal;
-}
+	if (!cpu) return;
 
-void tamalib_set_exec_mode(exec_mode_t mode)
-{
-	exec_mode = mode;
-	step_depth = cpu_get_depth();
-	cpu_sync_ref_timestamp();
-}
+	u32_t overflow_taken = min(cpu->overflow_cycles, cycles);
+	cycles -= overflow_taken;
+	cpu->overflow_cycles -= overflow_taken;
 
-void tamalib_step(void)
-{
-	if (exec_mode == EXEC_MODE_PAUSE) {
-		return;
-	}
-
-	if (cpu_step()) {
-		exec_mode = EXEC_MODE_PAUSE;
-		step_depth = cpu_get_depth();
-	} else {
-		switch (exec_mode) {
-			case EXEC_MODE_PAUSE:
-			case EXEC_MODE_RUN:
-				break;
-
-			case EXEC_MODE_STEP:
-				exec_mode = EXEC_MODE_PAUSE;
-				break;
-
-			case EXEC_MODE_NEXT:
-				if (cpu_get_depth() <= step_depth) {
-					exec_mode = EXEC_MODE_PAUSE;
-					step_depth = cpu_get_depth();
-				}
-				break;
-
-			case EXEC_MODE_TO_CALL:
-				if (cpu_get_depth() > step_depth) {
-					exec_mode = EXEC_MODE_PAUSE;
-					step_depth = cpu_get_depth();
-				}
-				break;
-
-			case EXEC_MODE_TO_RET:
-				if (cpu_get_depth() < step_depth) {
-					exec_mode = EXEC_MODE_PAUSE;
-					step_depth = cpu_get_depth();
-				}
-				break;
-		}
-	}
-}
-
-void tamalib_mainloop(void)
-{
-	timestamp_t ts;
-
-	while (!g_hal->handler()) {
-		tamalib_step();
-
-		/* Update the screen @ g_framerate fps */
-		ts = g_hal->get_timestamp();
-		if (ts - screen_ts >= ts_freq/g_framerate) {
-			screen_ts = ts;
-			g_hal->update_screen();
+	while (cycles > 0) {
+		u8_t cycles_ran = cpu_step(cpu);
+		if (cycles >= cycles_ran) {
+			cycles -= cycles_ran;
+		} else {
+			cpu->overflow_cycles = cycles_ran - cycles;
+			cycles = 0;
 		}
 	}
 }

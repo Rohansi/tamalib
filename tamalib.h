@@ -24,43 +24,22 @@
 #include "hw.h"
 #include "hal.h"
 
-#define tamalib_set_button(btn, state)			hw_set_button(btn, state)
+#ifdef _WIN32
+	#define LIBRARY_API __declspec(dllexport)
+#elif
+	#define LIBRARY_API
+#endif
 
-#define tamalib_set_speed(speed)			cpu_set_speed(speed)
+#define tamalib_refresh_hw(cpu)				cpu_refresh_hw(cpu)
 
-#define tamalib_get_state()				cpu_get_state()
-#define tamalib_refresh_hw()				cpu_refresh_hw()
-
-#define tamalib_reset()					cpu_reset()
-
-#define tamalib_add_bp(list, addr)			cpu_add_bp(list, addr)
-#define tamalib_free_bp(list)				cpu_free_bp(list)
-
-typedef enum {
-	EXEC_MODE_PAUSE,
-	EXEC_MODE_RUN,
-	EXEC_MODE_STEP,
-	EXEC_MODE_NEXT,
-	EXEC_MODE_TO_CALL,
-	EXEC_MODE_TO_RET,
-} exec_mode_t;
-
-
-void tamalib_release(void);
-bool_t tamalib_init(const u12_t *program, breakpoint_t *breakpoints, u32_t freq);
-
-void tamalib_set_framerate(u8_t framerate);
-u8_t tamalib_get_framerate(void);
-
-void tamalib_register_hal(hal_t *hal);
-
-void tamalib_set_exec_mode(exec_mode_t mode);
-
-/* NOTE: Only one of these two functions must be used in the main application
- * (tamalib_step() should be used only if tamalib_mainloop() does not fit the
- * main application execution flow).
- */
-void tamalib_step(void);
-void tamalib_mainloop(void);
+LIBRARY_API cpu_t *tamalib_create(
+	hal_set_lcd_matrix_handler_t lcd_matrix_handler,
+	hal_set_lcd_icon_handler_t lcd_icon_handler,
+	hal_set_frequency_handler_t set_frequency_handler,
+	hal_play_frequency_handler_t play_frequency_handler);
+LIBRARY_API void tamalib_destroy(cpu_t *cpu);
+LIBRARY_API void tamalib_reset(cpu_t *cpu);
+LIBRARY_API void tamalib_set_button(cpu_t *cpu, button_t btn, btn_state_t state);
+LIBRARY_API void tamalib_step(cpu_t *cpu, u32_t cycles);
 
 #endif /* _TAMALIB_H_ */

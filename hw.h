@@ -20,6 +20,7 @@
 #ifndef _HW_H_
 #define _HW_H_
 
+#include "cpu.h"
 #include "hal.h"
 
 #define LCD_WIDTH			32
@@ -39,13 +40,13 @@ typedef enum {
 } button_t;
 
 
-bool_t hw_init(void);
-void hw_release(void);
+void hw_init(cpu_t *cpu);
+void hw_release(cpu_t *cpu);
 
-void hw_set_lcd_pin(u8_t seg, u8_t com, u8_t val);
-void hw_set_button(button_t btn, btn_state_t state);
+void hw_set_lcd_pin(cpu_t *cpu, u8_t seg, u8_t com, u8_t val);
+void hw_set_button(cpu_t *cpu, button_t btn, btn_state_t state);
 
-void hw_set_buzzer_freq(u4_t freq);
-void hw_enable_buzzer(bool_t en);
+void hw_set_buzzer_freq(const cpu_t *cpu, u4_t freq);
+void hw_enable_buzzer(const cpu_t *cpu, bool_t en);
 
 #endif /* _HW_H_ */

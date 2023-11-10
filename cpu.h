@@ -36,7 +36,7 @@
 /* Define this if you want to reduce the footprint of the memory buffer from 4096 u4_t (most likely bytes)
  * to 464 u8_t (bytes for sure), while increasing slightly the number of operations needed to read/write from/to it.
  */
-#define LOW_FOOTPRINT
+//#define LOW_FOOTPRINT
 
 #ifdef LOW_FOOTPRINT
 /* Invalid memory areas are not buffered to reduce the footprint of the library in memory */
@@ -103,10 +103,7 @@
 #define MEM_BUFFER_TYPE				u4_t
 #endif
 
-typedef struct breakpoint {
-	u13_t addr;
-	struct breakpoint *next;
-} breakpoint_t;
+#define INPUT_PORT_NUM				2
 
 /* Pins (TODO: add other pins) */
 typedef enum {
@@ -143,50 +140,55 @@ typedef struct {
 } interrupt_t;
 
 typedef struct {
-	u13_t *pc;
-	u12_t *x;
-	u12_t *y;
-	u4_t *a;
-	u4_t *b;
-	u5_t *np;
-	u8_t *sp;
-	u4_t *flags;
+	u4_t states;
+} input_port_t;
 
-	u32_t *tick_counter;
-	u32_t *clk_timer_timestamp;
-	u32_t *prog_timer_timestamp;
-	bool_t *prog_timer_enabled;
-	u8_t *prog_timer_data;
-	u8_t *prog_timer_rld;
+typedef struct {
+	u13_t pc;
+	u13_t next_pc;
+	u12_t x;
+	u12_t y;
+	u4_t a;
+	u4_t b;
+	u5_t np;
+	u8_t sp;
+	u4_t flags;
+	const u12_t *g_program;
+	MEM_BUFFER_TYPE memory[MEM_BUFFER_SIZE];
+	interrupt_t interrupts[INT_SLOT_NUM];
+	input_port_t inputs[INPUT_PORT_NUM];
+	hal_t g_hal;
+	
+	u32_t call_depth;
+	u32_t clk_timer_timestamp;
+	u32_t prog_timer_timestamp;
+	bool_t prog_timer_enabled;
+	u8_t prog_timer_data;
+	u8_t prog_timer_rld;
 
-	u32_t *call_depth;
+	u32_t tick_counter;
+	u32_t ts_freq;
+	u8_t speed_ratio;
+	timestamp_t ref_ts;
+	u8_t previous_cycles;
+	u8_t overflow_cycles;
+} cpu_t;
 
-	interrupt_t *interrupts;
+void cpu_set_speed(cpu_t *cpu, u8_t speed);
 
-	MEM_BUFFER_TYPE *memory;
-} state_t;
+u32_t cpu_get_depth(const cpu_t *cpu);
 
+void cpu_set_input_pin(cpu_t *cpu, pin_t pin, pin_state_t state);
 
-void cpu_add_bp(breakpoint_t **list, u13_t addr);
-void cpu_free_bp(breakpoint_t **list);
+void cpu_sync_ref_timestamp(cpu_t *cpu);
 
-void cpu_set_speed(u8_t speed);
+void cpu_refresh_hw(cpu_t *cpu);
 
-state_t * cpu_get_state(void);
+void cpu_reset(cpu_t *cpu);
 
-u32_t cpu_get_depth(void);
+void cpu_init(cpu_t *cpu, const u12_t *program);
+void cpu_release(cpu_t *cpu);
 
-void cpu_set_input_pin(pin_t pin, pin_state_t state);
-
-void cpu_sync_ref_timestamp(void);
-
-void cpu_refresh_hw(void);
-
-void cpu_reset(void);
-
-bool_t cpu_init(const u12_t *program, breakpoint_t *breakpoints, u32_t freq);
-void cpu_release(void);
-
-int cpu_step(void);
+u8_t cpu_step(cpu_t *cpu);
 
 #endif /* _CPU_H_ */
